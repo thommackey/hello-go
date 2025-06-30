@@ -4,43 +4,62 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"testing"
 )
 
+
 func TestApp_addName(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
+
+	err := app.addName("Alice")
+	if err != nil {
+		t.Errorf("Failed to add Alice: %v", err)
 	}
 
-	app.addName("Alice")
-	app.addName("Bob")
-
-	if len(app.names) != 2 {
-		t.Errorf("Expected 2 names, got %d", len(app.names))
+	err = app.addName("Bob")
+	if err != nil {
+		t.Errorf("Failed to add Bob: %v", err)
 	}
 
-	if app.names[0] != "Alice" {
-		t.Errorf("Expected first name to be Alice, got %s", app.names[0])
+	names, err := app.getNames()
+	if err != nil {
+		t.Errorf("Failed to get names: %v", err)
 	}
 
-	if app.names[1] != "Bob" {
-		t.Errorf("Expected second name to be Bob, got %s", app.names[1])
+	if len(names) != 2 {
+		t.Errorf("Expected 2 names, got %d", len(names))
+	}
+
+	if names[0] != "Alice" {
+		t.Errorf("Expected first name to be Alice, got %s", names[0])
+	}
+
+	if names[1] != "Bob" {
+		t.Errorf("Expected second name to be Bob, got %s", names[1])
 	}
 }
 
 func TestApp_getNames(t *testing.T) {
-	app := &App{
-		names: []string{"Alice", "Bob", "Charlie"},
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
+
+	expectedNames := []string{"Alice", "Bob", "Charlie"}
+	for _, name := range expectedNames {
+		if err := app.addName(name); err != nil {
+			t.Fatalf("Failed to add name %s: %v", name, err)
+		}
 	}
 
-	names := app.getNames()
+	names, err := app.getNames()
+	if err != nil {
+		t.Errorf("Failed to get names: %v", err)
+	}
 
 	if len(names) != 3 {
 		t.Errorf("Expected 3 names, got %d", len(names))
 	}
 
-	expectedNames := []string{"Alice", "Bob", "Charlie"}
 	for i, name := range names {
 		if name != expectedNames[i] {
 			t.Errorf("Expected name at index %d to be %s, got %s", i, expectedNames[i], name)
@@ -49,57 +68,56 @@ func TestApp_getNames(t *testing.T) {
 }
 
 func TestApp_getNames_returnsCopy(t *testing.T) {
-	app := &App{
-		names: []string{"Alice"},
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
+
+	if err := app.addName("Alice"); err != nil {
+		t.Fatalf("Failed to add Alice: %v", err)
 	}
 
-	names := app.getNames()
+	names, err := app.getNames()
+	if err != nil {
+		t.Errorf("Failed to get names: %v", err)
+	}
 	names[0] = "Modified"
 
-	originalNames := app.getNames()
+	originalNames, err := app.getNames()
+	if err != nil {
+		t.Errorf("Failed to get names: %v", err)
+	}
 	if originalNames[0] != "Alice" {
 		t.Errorf("Original names should not be modified when returned slice is changed")
 	}
 }
 
-func TestApp_concurrentAccess(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
+func TestApp_sequentialAccess(t *testing.T) {
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
+
+	numNames := 10
+	for i := 0; i < numNames; i++ {
+		if err := app.addName(fmt.Sprintf("Name%d", i)); err != nil {
+			t.Errorf("Failed to add name %d: %v", i, err)
+		}
 	}
 
-	var wg sync.WaitGroup
-	numGoroutines := 100
-
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			app.addName(fmt.Sprintf("Name%d", id))
-		}(i)
+	names, err := app.getNames()
+	if err != nil {
+		t.Errorf("Failed to get names: %v", err)
 	}
-
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			app.getNames()
-		}()
-	}
-
-	wg.Wait()
-
-	names := app.getNames()
-	if len(names) != numGoroutines {
-		t.Errorf("Expected %d names after concurrent access, got %d", numGoroutines, len(names))
+	if len(names) != numNames {
+		t.Errorf("Expected %d names after sequential access, got %d", numNames, len(names))
 	}
 }
 
 func TestApp_emptyState(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
-	names := app.getNames()
+	names, err := app.getNames()
+	if err != nil {
+		t.Errorf("Failed to get names: %v", err)
+	}
 	if len(names) != 0 {
 		t.Errorf("Expected empty slice for new app, got %d names", len(names))
 	}

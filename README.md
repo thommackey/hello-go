@@ -44,4 +44,4 @@ go test -v e2e_test.go main.go          # End-to-end tests
 
 ## Development
 
-This project was co-developed with Claude Code to demonstrate best practices for Go web development, including comprehensive testing and clean code structure.
+This project was co-developed with Claude Code to try and get it to work as well as everyone says it does.

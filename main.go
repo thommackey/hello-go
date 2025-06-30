@@ -3,31 +3,41 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
-	"sync"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type App struct {
-	names []string
-	mutex sync.RWMutex
+	db *sql.DB
 }
 
-func (a *App) addName(name string) {
-	a.mutex.Lock()
-	defer a.mutex.Unlock()
-	a.names = append(a.names, name)
+func (a *App) addName(name string) error {
+	_, err := a.db.Exec("INSERT INTO names (name) VALUES (?)", name)
+	return err
 }
 
-func (a *App) getNames() []string {
-	a.mutex.RLock()
-	defer a.mutex.RUnlock()
-	namesCopy := make([]string, len(a.names))
-	copy(namesCopy, a.names)
-	return namesCopy
+func (a *App) getNames() ([]string, error) {
+	rows, err := a.db.Query("SELECT name FROM names ORDER BY id")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return names, rows.Err()
 }
 
 func (a *App) homeHandler(w http.ResponseWriter, r *http.Request) {
@@ -103,13 +113,20 @@ func (a *App) helloHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	a.addName(name)
+	if err := a.addName(name); err != nil {
+		http.Error(w, "Failed to save name", http.StatusInternalServerError)
+		return
+	}
 	greeting := fmt.Sprintf("Hello, %s!", name)
 	http.Redirect(w, r, "/?greeting="+greeting, http.StatusSeeOther)
 }
 
 func (a *App) namesHandler(w http.ResponseWriter, r *http.Request) {
-	names := a.getNames()
+	names, err := a.getNames()
+	if err != nil {
+		http.Error(w, "Failed to retrieve names", http.StatusInternalServerError)
+		return
+	}
 	
 	tmpl := `
 <!DOCTYPE html>
@@ -182,7 +199,10 @@ func (a *App) apiHelloHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	a.addName(req.Name)
+	if err := a.addName(req.Name); err != nil {
+		http.Error(w, "Failed to save name", http.StatusInternalServerError)
+		return
+	}
 	
 	response := struct {
 		Message string `json:"message"`
@@ -202,7 +222,11 @@ func (a *App) apiNamesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	names := a.getNames()
+	names, err := a.getNames()
+	if err != nil {
+		http.Error(w, "Failed to retrieve names", http.StatusInternalServerError)
+		return
+	}
 	
 	response := struct {
 		Names []string `json:"names"`
@@ -216,9 +240,35 @@ func (a *App) apiNamesHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func initDB() (*sql.DB, error) {
+	db, err := sql.Open("sqlite3", "names.db")
+	if err != nil {
+		return nil, err
+	}
+
+	createTable := `
+	CREATE TABLE IF NOT EXISTS names (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL
+	);`
+
+	if _, err := db.Exec(createTable); err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	return db, nil
+}
+
 func main() {
+	db, err := initDB()
+	if err != nil {
+		log.Fatal("Failed to initialize database:", err)
+	}
+	defer db.Close()
+
 	app := &App{
-		names: make([]string, 0),
+		db: db,
 	}
 	
 	http.HandleFunc("/", app.homeHandler)
