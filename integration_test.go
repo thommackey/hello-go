@@ -12,10 +12,10 @@ import (
 	"testing"
 )
 
+
 func TestHomeHandler(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
@@ -33,9 +33,8 @@ func TestHomeHandler(t *testing.T) {
 }
 
 func TestHomeHandlerWithGreeting(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	req := httptest.NewRequest("GET", "/?greeting=Hello%2C+Alice%21", nil)
 	w := httptest.NewRecorder()
@@ -53,9 +52,8 @@ func TestHomeHandlerWithGreeting(t *testing.T) {
 }
 
 func TestHelloHandler_POST(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	form := url.Values{}
 	form.Add("name", "Alice")
@@ -74,16 +72,18 @@ func TestHelloHandler_POST(t *testing.T) {
 		t.Errorf("Expected redirect to contain greeting, got %s", location)
 	}
 
-	names := app.getNames()
+	names, err := app.getNames()
+	if err != nil {
+		t.Errorf("Failed to get names: %v", err)
+	}
 	if len(names) != 1 || names[0] != "Alice" {
 		t.Errorf("Expected name to be added to app")
 	}
 }
 
 func TestHelloHandler_GET_Redirect(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	req := httptest.NewRequest("GET", "/hello", nil)
 	w := httptest.NewRecorder()
@@ -101,9 +101,8 @@ func TestHelloHandler_GET_Redirect(t *testing.T) {
 }
 
 func TestHelloHandler_EmptyName(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	form := url.Values{}
 	form.Add("name", "")
@@ -117,16 +116,21 @@ func TestHelloHandler_EmptyName(t *testing.T) {
 		t.Errorf("Expected status 303, got %d", w.Code)
 	}
 
-	names := app.getNames()
+	names, err := app.getNames()
+	if err != nil {
+		t.Errorf("Failed to get names: %v", err)
+	}
 	if len(names) != 0 {
 		t.Errorf("Expected no names to be added for empty name")
 	}
 }
 
 func TestNamesHandler(t *testing.T) {
-	app := &App{
-		names: []string{"Alice", "Bob"},
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
+
+	app.addName("Alice")
+	app.addName("Bob")
 
 	req := httptest.NewRequest("GET", "/names", nil)
 	w := httptest.NewRecorder()
@@ -144,9 +148,8 @@ func TestNamesHandler(t *testing.T) {
 }
 
 func TestNamesHandler_Empty(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	req := httptest.NewRequest("GET", "/names", nil)
 	w := httptest.NewRecorder()
@@ -164,9 +167,8 @@ func TestNamesHandler_Empty(t *testing.T) {
 }
 
 func TestAPIHelloHandler_POST(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	requestBody := map[string]string{"name": "Alice"}
 	jsonBody, _ := json.Marshal(requestBody)
@@ -191,16 +193,18 @@ func TestAPIHelloHandler_POST(t *testing.T) {
 		t.Errorf("Expected name 'Alice', got %s", response["name"])
 	}
 
-	names := app.getNames()
+	names, err := app.getNames()
+	if err != nil {
+		t.Errorf("Failed to get names: %v", err)
+	}
 	if len(names) != 1 || names[0] != "Alice" {
 		t.Errorf("Expected name to be added to app")
 	}
 }
 
 func TestAPIHelloHandler_InvalidMethod(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	req := httptest.NewRequest("GET", "/api/hello", nil)
 	w := httptest.NewRecorder()
@@ -213,9 +217,8 @@ func TestAPIHelloHandler_InvalidMethod(t *testing.T) {
 }
 
 func TestAPIHelloHandler_InvalidJSON(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	req := httptest.NewRequest("POST", "/api/hello", strings.NewReader("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
@@ -229,9 +232,8 @@ func TestAPIHelloHandler_InvalidJSON(t *testing.T) {
 }
 
 func TestAPIHelloHandler_EmptyName(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	requestBody := map[string]string{"name": ""}
 	jsonBody, _ := json.Marshal(requestBody)
@@ -247,9 +249,11 @@ func TestAPIHelloHandler_EmptyName(t *testing.T) {
 }
 
 func TestAPINamesHandler_GET(t *testing.T) {
-	app := &App{
-		names: []string{"Alice", "Bob"},
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
+
+	app.addName("Alice")
+	app.addName("Bob")
 
 	req := httptest.NewRequest("GET", "/api/names", nil)
 	w := httptest.NewRecorder()
@@ -275,9 +279,8 @@ func TestAPINamesHandler_GET(t *testing.T) {
 }
 
 func TestAPINamesHandler_InvalidMethod(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	req := httptest.NewRequest("POST", "/api/names", nil)
 	w := httptest.NewRecorder()

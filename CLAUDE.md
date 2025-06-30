@@ -15,6 +15,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - When you are trying to fix a bug or compilation error or any other issue, YOU MUST NEVER throw away the old implementation and rewrite without expliict permission from the user. If you are going to do this, YOU MUST STOP and get explicit permission from the user.
 - NEVER name things as 'improved' or 'new' or 'enhanced', etc. Code naming should be evergreen. What is new today will be "old" someday.
 
+## Git Workflow
+- Always create feature branches
+- Squash commits before merging
+- Use conventional commit messages
+
+## Code Review Process
+- All PRs require at least one approval
+- Run tests locally before submitting PR
+
 ## Version Control
 
 - If the project isn't in a git repo, YOU MUST STOP and ask permission to initialize one.
@@ -27,6 +36,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - ALWAYS ask for clarification rather than making assumptions.
 - If you're having trouble with something, it's ok to stop and ask for help. Especially if it's something your human might be better at.
+
+## Security Requirements
+- Never log sensitive data (tokens, keys)
+- All secrets via environment variables
 
 ## Testing
 

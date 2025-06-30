@@ -12,10 +12,10 @@ import (
 	"testing"
 )
 
+
 func TestE2E_CompleteWebWorkflow(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -74,16 +74,18 @@ func TestE2E_CompleteWebWorkflow(t *testing.T) {
 		t.Errorf("Expected status 200 for names page, got %d", namesResp.StatusCode)
 	}
 
-	names := app.getNames()
+	names, err := app.getNames()
+	if err != nil {
+		t.Errorf("Failed to get names: %v", err)
+	}
 	if len(names) != 1 || names[0] != "Alice" {
 		t.Errorf("Expected Alice to be stored in names")
 	}
 }
 
 func TestE2E_CompleteAPIWorkflow(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -143,9 +145,8 @@ func TestE2E_CompleteAPIWorkflow(t *testing.T) {
 }
 
 func TestE2E_MixedWebAndAPIWorkflow(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -208,9 +209,8 @@ func TestE2E_MixedWebAndAPIWorkflow(t *testing.T) {
 }
 
 func TestE2E_MultipleUsersWorkflow(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -269,9 +269,8 @@ func TestE2E_MultipleUsersWorkflow(t *testing.T) {
 }
 
 func TestE2E_ErrorHandling(t *testing.T) {
-	app := &App{
-		names: make([]string, 0),
-	}
+	app := setupTestDB(t)
+	defer teardownTestDB(app)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -319,7 +318,10 @@ func TestE2E_ErrorHandling(t *testing.T) {
 		t.Errorf("Expected status 405 for wrong method, got %d", wrongMethodResp.StatusCode)
 	}
 
-	names := app.getNames()
+	names, err := app.getNames()
+	if err != nil {
+		t.Errorf("Failed to get names: %v", err)
+	}
 	if len(names) != 0 {
 		t.Errorf("Expected no names to be stored after error scenarios, got %d", len(names))
 	}
